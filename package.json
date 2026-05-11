@@ -8,10 +8,12 @@
   },
   "scripts": {
     "build": "tsc",
+    "build:web": "cd web && npm install && npm run build",
     "watch": "tsc -w",
     "synth": "cdk synth",
     "diff": "cdk diff",
-    "deploy": "cdk deploy --all --require-approval never",
+    "deploy": "npm run build:web && cdk deploy --all --require-approval never",
+    "deploy:no-web": "cdk deploy --all --require-approval never -c deployWeb=false",
     "destroy": "cdk destroy --all --force",
     "bootstrap": "cdk bootstrap"
   },

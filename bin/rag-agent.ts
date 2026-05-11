@@ -19,6 +19,7 @@ new RagAgentStack(app, `${basename}-stack`, {
   retrievalNumResults: Number(app.node.tryGetContext('retrievalNumResults')) || 5,
   agentInstruction: app.node.tryGetContext('agentInstruction'),
   enableGuardrail: app.node.tryGetContext('enableGuardrail') !== false,
+  deployWeb: app.node.tryGetContext('deployWeb') !== false,
 });
 
 cdk.Tags.of(app).add('project', basename);

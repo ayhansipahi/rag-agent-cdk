@@ -14,6 +14,7 @@ export interface ChatApiProps {
 
 export class ChatApi extends Construct {
   public readonly functionUrl: string;
+  public readonly fnUrl: lambda.IFunctionUrl;
 
   constructor(scope: Construct, id: string, props: ChatApiProps) {
     super(scope, id);
@@ -36,13 +37,6 @@ export class ChatApi extends Construct {
         externalModules: ['@aws-sdk/*'],
         minify: true,
         target: 'node20',
-        commandHooks: {
-          beforeBundling: () => [],
-          beforeInstall: () => [],
-          afterBundling: (inputDir: string, outputDir: string) => [
-            `cp ${inputDir}/web/index.html ${outputDir}/index.html`,
-          ],
-        },
       },
     });
 
@@ -57,11 +51,12 @@ export class ChatApi extends Construct {
       authType: lambda.FunctionUrlAuthType.NONE,
       cors: {
         allowedOrigins: ['*'],
-        allowedMethods: [lambda.HttpMethod.GET, lambda.HttpMethod.POST],
+        allowedMethods: [lambda.HttpMethod.POST],
         allowedHeaders: ['content-type'],
       },
     });
 
+    this.fnUrl = url;
     this.functionUrl = url.url;
   }
 }
