@@ -98,14 +98,14 @@ export const App = () => {
 
   return (
     <TooltipProvider>
-      <div className="dark flex flex-col h-screen bg-background text-foreground">
-        <header className="flex items-center justify-between px-6 py-4 border-b">
-          <h1 className="text-base font-semibold m-0">RAG Assistant</h1>
+      <div className="dark flex h-dvh flex-col bg-background text-foreground">
+        <header className="flex shrink-0 items-center justify-between border-b px-6 py-4">
+          <h1 className="m-0 text-base font-semibold">RAG Assistant</h1>
           <span className="text-xs text-muted-foreground">{status}</span>
         </header>
 
-        <Conversation className="flex-1">
-          <ConversationContent className="mx-auto w-full max-w-3xl px-4 py-6">
+        <Conversation className="min-h-0 flex-1">
+          <ConversationContent className="mx-auto h-full w-full max-w-3xl px-4 py-6">
             {messages.length === 0 ? (
               <ConversationEmptyState
                 title="Ask anything about the knowledge base"
@@ -146,12 +146,14 @@ export const App = () => {
           <ConversationScrollButton />
         </Conversation>
 
-        <PromptInput onSubmit={onSubmit} className="mx-auto w-full max-w-3xl mb-4 px-4">
-          <PromptInputBody>
-            <PromptInputTextarea placeholder="Ask a question about the knowledge base..." />
-            <PromptInputSubmit status={status === 'submitted' ? 'submitted' : undefined} />
-          </PromptInputBody>
-        </PromptInput>
+        <div className="shrink-0 border-t bg-background px-4 pt-3 pb-4">
+          <PromptInput onSubmit={onSubmit} className="mx-auto w-full max-w-3xl">
+            <PromptInputBody>
+              <PromptInputTextarea placeholder="Ask a question about the knowledge base..." />
+              <PromptInputSubmit status={status === 'submitted' ? 'submitted' : undefined} />
+            </PromptInputBody>
+          </PromptInput>
+        </div>
       </div>
     </TooltipProvider>
   );
