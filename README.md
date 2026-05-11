@@ -56,8 +56,11 @@ The deploy creates five logical groups behind one stack:
 3. Bedrock Agent + alias + Guardrail (KB attached at create-time)
 4. Lambda Function URL + IAM permissions to call `bedrock:InvokeAgent`
 5. CloudFront distribution + S3 site bucket + OAC + BucketDeployment of `web/dist`
+6. AwsCustomResource that fires `StartIngestionJob` on every deploy so the KB indexes the corpus without a manual step
 
 `npm run deploy` runs `npm run build:web` first so `web/dist/` exists before CDK reads it. If you want to iterate on infra only and skip the SPA, use `npm run deploy:no-web`.
+
+**Ingestion is automated.** The stack ships an `AwsCustomResource` (`KnowledgeBase/IngestionTrigger`) that fires `bedrock:StartIngestionJob` on every deploy. The seed corpus indexes in ~30–60 seconds after deploy completes; subsequent deploys re-fire incrementally so any new documents in the S3 bucket are picked up automatically. The `SyncCommand` in the stack outputs is only needed if you upload documents *between* deploys without re-running `cdk deploy`.
 
 ## Open the chat
 
