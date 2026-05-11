@@ -1,0 +1,35 @@
+{
+  "name": "rag-agent-cdk",
+  "version": "0.1.0",
+  "description": "RAG assistant on AWS Bedrock — Knowledge Base, Agent, Guardrails, and a chat UI, provisioned end-to-end with AWS CDK.",
+  "private": true,
+  "bin": {
+    "rag-agent-cdk": "bin/rag-agent.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "synth": "cdk synth",
+    "diff": "cdk diff",
+    "deploy": "cdk deploy --all --require-approval never",
+    "destroy": "cdk destroy --all --force",
+    "bootstrap": "cdk bootstrap"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^22.7.5",
+    "aws-cdk": "^2.170.0",
+    "esbuild": "^0.24.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "@aws-crypto/sha256-js": "^5.2.0",
+    "@aws-sdk/client-bedrock-agent-runtime": "^3.682.0",
+    "@aws-sdk/credential-provider-node": "^3.682.0",
+    "@aws-sdk/protocol-http": "^3.374.0",
+    "@aws-sdk/signature-v4": "^3.374.0",
+    "aws-cdk-lib": "^2.170.0",
+    "constructs": "^10.4.2"
+  }
+}
