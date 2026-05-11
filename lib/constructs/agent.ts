@@ -34,15 +34,18 @@ export class Agent extends Construct {
     });
 
     // Foundation model — agentModelId is typically a cross-region inference
-    // profile ID (e.g. "us.anthropic.claude-sonnet-4-5-...") so we grant both
-    // the profile and the underlying region-specific model.
+    // profile ID (e.g. "us.anthropic.claude-sonnet-4-5-...") so we grant the
+    // profile AND the underlying foundation model in any region the profile
+    // can route to. Foundation-model ARNs have no account segment and live in
+    // each region the profile spans (us-east-1, us-east-2, us-west-2 for the
+    // `us.*` profile family). Without the region wildcard on foundation-model,
+    // Bedrock returns AccessDenied for in-region routes other than us-east-1.
     agentRole.addToPolicy(
       new iam.PolicyStatement({
         actions: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream'],
         resources: [
-          `arn:aws:bedrock:${region}::foundation-model/*`,
+          `arn:aws:bedrock:*::foundation-model/*`,
           `arn:aws:bedrock:*:${account}:inference-profile/*`,
-          `arn:aws:bedrock:${region}:${account}:inference-profile/*`,
         ],
       }),
     );
