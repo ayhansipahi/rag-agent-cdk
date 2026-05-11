@@ -1,4 +1,6 @@
-// Minimal class-name joiner. AI Elements normally pulls this from shadcn/ui;
-// here we inline it to avoid the full shadcn scaffolding.
-export const cn = (...parts: (string | false | null | undefined)[]) =>
-  parts.filter(Boolean).join(' ');
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}

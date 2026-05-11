@@ -1,10 +1,34 @@
 import { useState } from 'react';
-import { Conversation } from './components/ai-elements/conversation';
-import { Message, MessageContent } from './components/ai-elements/message';
-import { Response } from './components/ai-elements/response';
-import { Sources, type Citation } from './components/ai-elements/sources';
-import { PromptInput } from './components/ai-elements/prompt-input';
+import type { PromptInputMessage } from '@/components/ai-elements/prompt-input';
+import {
+  Conversation,
+  ConversationContent,
+  ConversationEmptyState,
+  ConversationScrollButton,
+} from '@/components/ai-elements/conversation';
+import {
+  Message,
+  MessageContent,
+  MessageResponse,
+} from '@/components/ai-elements/message';
+import {
+  Sources,
+  SourcesTrigger,
+  SourcesContent,
+  Source,
+} from '@/components/ai-elements/sources';
+import {
+  PromptInput,
+  PromptInputBody,
+  PromptInputTextarea,
+  PromptInputSubmit,
+} from '@/components/ai-elements/prompt-input';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
+interface Citation {
+  source?: string;
+  quote?: string;
+}
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -12,28 +36,29 @@ interface ChatMessage {
   citations?: Citation[];
   pending?: boolean;
 }
-
 interface ChatResponse {
   answer: string;
   citations: Citation[];
   sessionId: string;
 }
 
+type Status = 'ready' | 'submitted' | 'error';
+
 const newId = () =>
-  typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : String(Math.random());
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : String(Math.random());
 
 export const App = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-  const [status, setStatus] = useState<'ready' | 'thinking' | 'error'>('ready');
+  const [status, setStatus] = useState<Status>('ready');
 
   const send = async (text: string) => {
     const userMsg: ChatMessage = { id: newId(), role: 'user', text };
     const botMsg: ChatMessage = { id: newId(), role: 'assistant', text: '', pending: true };
     setMessages((prev) => [...prev, userMsg, botMsg]);
-    setPending(true);
-    setStatus('thinking');
+    setStatus('submitted');
 
     try {
       const res = await fetch('/chat', {
@@ -55,50 +80,79 @@ export const App = () => {
       );
       setStatus('ready');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'unknown error';
+      const errMsg = err instanceof Error ? err.message : 'unknown error';
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === botMsg.id ? { ...m, text: `Error: ${msg}`, pending: false } : m,
+          m.id === botMsg.id ? { ...m, text: `Error: ${errMsg}`, pending: false } : m,
         ),
       );
       setStatus('error');
-    } finally {
-      setPending(false);
     }
   };
 
+  const onSubmit = (message: PromptInputMessage) => {
+    const text = message.text?.trim();
+    if (!text) return;
+    void send(text);
+  };
+
   return (
-    <div className="flex flex-col h-full">
-      <header className="flex items-center justify-between px-6 py-4 border-b border-[color:var(--color-border)]">
-        <h1 className="text-base font-semibold m-0">RAG Assistant</h1>
-        <span className="text-xs text-[color:var(--color-muted)]">{status}</span>
-      </header>
+    <TooltipProvider>
+      <div className="dark flex flex-col h-screen bg-background text-foreground">
+        <header className="flex items-center justify-between px-6 py-4 border-b">
+          <h1 className="text-base font-semibold m-0">RAG Assistant</h1>
+          <span className="text-xs text-muted-foreground">{status}</span>
+        </header>
 
-      <Conversation>
-        {messages.length === 0 && (
-          <div className="text-center text-sm text-[color:var(--color-muted)] py-12">
-            Ask a question about the seeded knowledge base.
-          </div>
-        )}
-        {messages.map((m) => (
-          <Message key={m.id} role={m.role}>
-            {m.role === 'user' ? (
-              <MessageContent>{m.text}</MessageContent>
+        <Conversation className="flex-1">
+          <ConversationContent className="mx-auto w-full max-w-3xl px-4 py-6">
+            {messages.length === 0 ? (
+              <ConversationEmptyState
+                title="Ask anything about the knowledge base"
+                description="The seed corpus covers architecture, costs, and how to add your own docs."
+              />
             ) : (
-              <MessageContent>
-                {m.pending ? (
-                  <span className="italic text-[color:var(--color-muted)]">…</span>
-                ) : (
-                  <Response text={m.text} />
-                )}
-                {m.citations && <Sources items={m.citations} />}
-              </MessageContent>
+              messages.map((m) => (
+                <Message key={m.id} from={m.role}>
+                  <MessageContent>
+                    {m.role === 'user' ? (
+                      <p className="whitespace-pre-wrap">{m.text}</p>
+                    ) : m.pending ? (
+                      <span className="italic text-muted-foreground">…</span>
+                    ) : (
+                      <MessageResponse>{m.text}</MessageResponse>
+                    )}
+                    {m.citations && m.citations.length > 0 && (
+                      <Sources>
+                        <SourcesTrigger count={m.citations.length} />
+                        <SourcesContent>
+                          {m.citations.map((c, i) => (
+                            <Source
+                              key={i}
+                              href={c.source ?? '#'}
+                              title={c.source ?? 'source'}
+                            >
+                              {c.quote ?? c.source}
+                            </Source>
+                          ))}
+                        </SourcesContent>
+                      </Sources>
+                    )}
+                  </MessageContent>
+                </Message>
+              ))
             )}
-          </Message>
-        ))}
-      </Conversation>
+          </ConversationContent>
+          <ConversationScrollButton />
+        </Conversation>
 
-      <PromptInput onSubmit={send} disabled={pending} />
-    </div>
+        <PromptInput onSubmit={onSubmit} className="mx-auto w-full max-w-3xl mb-4 px-4">
+          <PromptInputBody>
+            <PromptInputTextarea placeholder="Ask a question about the knowledge base..." />
+            <PromptInputSubmit status={status === 'submitted' ? 'submitted' : undefined} />
+          </PromptInputBody>
+        </PromptInput>
+      </div>
+    </TooltipProvider>
   );
 };
