@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { MessagesSquare, Sparkles } from 'lucide-react';
 import type { PromptInputMessage } from '@/components/ai-elements/prompt-input';
 import {
   Conversation,
@@ -96,18 +97,42 @@ export const App = () => {
     void send(text);
   };
 
+  const statusLabel = status === 'submitted' ? 'thinking…' : status === 'error' ? 'error' : 'ready';
+  const statusDot =
+    status === 'submitted'
+      ? 'bg-amber-400 animate-pulse'
+      : status === 'error'
+        ? 'bg-red-500'
+        : 'bg-emerald-400';
+
   return (
     <TooltipProvider>
       <div className="dark flex h-dvh flex-col bg-background text-foreground">
-        <header className="flex shrink-0 items-center justify-between border-b px-6 py-4">
-          <h1 className="m-0 text-base font-semibold">RAG Assistant</h1>
-          <span className="text-xs text-muted-foreground">{status}</span>
+        <header className="flex shrink-0 items-center justify-between border-b border-border/60 px-6 py-3 backdrop-blur-sm">
+          <div className="flex items-center gap-2.5">
+            <span className="inline-flex size-7 items-center justify-center rounded-md bg-primary/10 text-primary ring-1 ring-primary/20">
+              <MessagesSquare className="size-4" />
+            </span>
+            <div className="leading-tight">
+              <h1 className="m-0 text-sm font-semibold tracking-tight">RAG Assistant</h1>
+              <p className="text-[11px] text-muted-foreground">Claude · Bedrock · OpenSearch</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className={`size-1.5 rounded-full ${statusDot}`} />
+            <span>{statusLabel}</span>
+          </div>
         </header>
 
         <Conversation className="min-h-0 flex-1">
           <ConversationContent className="mx-auto h-full w-full max-w-3xl px-4 py-6">
             {messages.length === 0 ? (
               <ConversationEmptyState
+                icon={
+                  <span className="inline-flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary ring-1 ring-primary/20">
+                    <Sparkles className="size-5" />
+                  </span>
+                }
                 title="Ask anything about the knowledge base"
                 description="The seed corpus covers architecture, costs, and how to add your own docs."
               />
@@ -146,13 +171,19 @@ export const App = () => {
           <ConversationScrollButton />
         </Conversation>
 
-        <div className="shrink-0 border-t bg-background px-4 pt-3 pb-4">
-          <PromptInput onSubmit={onSubmit} className="mx-auto w-full max-w-3xl">
+        <div className="shrink-0 border-t border-border/60 bg-background/80 px-4 pt-4 pb-6 backdrop-blur-sm">
+          <PromptInput
+            onSubmit={onSubmit}
+            className="mx-auto w-full max-w-3xl rounded-2xl border border-border/80 bg-card/60 shadow-lg shadow-black/20"
+          >
             <PromptInputBody>
-              <PromptInputTextarea placeholder="Ask a question about the knowledge base..." />
+              <PromptInputTextarea placeholder="Ask a question about the knowledge base…" />
               <PromptInputSubmit status={status === 'submitted' ? 'submitted' : undefined} />
             </PromptInputBody>
           </PromptInput>
+          <p className="mx-auto mt-2 max-w-3xl text-[11px] text-muted-foreground">
+            Grounded on documents in S3 · responses include citations · multi-turn context preserved.
+          </p>
         </div>
       </div>
     </TooltipProvider>
