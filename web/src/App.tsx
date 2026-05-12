@@ -67,18 +67,58 @@ export const App = () => {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ message: text, sessionId }),
       });
-      const data = (await res.json()) as ChatResponse | { error: string };
-      if (!res.ok || 'error' in data) {
-        throw new Error('error' in data ? data.error : 'request failed');
+      if (!res.ok || !res.body) throw new Error(`request failed (${res.status})`);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let acc = '';
+      let firstChunk = true;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        // NDJSON: split on newline, last partial line stays in buffer.
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (!line) continue;
+          let evt: { t: string; v?: string; citations?: Citation[]; sessionId?: string; message?: string };
+          try {
+            evt = JSON.parse(line);
+          } catch {
+            continue;
+          }
+          if (evt.t === 'text' && evt.v) {
+            acc += evt.v;
+            const snapshot = acc;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === botMsg.id
+                  ? { ...m, text: snapshot, pending: false }
+                  : m,
+              ),
+            );
+            if (firstChunk) {
+              setStatus('ready');
+              firstChunk = false;
+            }
+          } else if (evt.t === 'done') {
+            if (evt.sessionId) setSessionId(evt.sessionId);
+            const citations = evt.citations;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === botMsg.id ? { ...m, citations, pending: false } : m,
+              ),
+            );
+          } else if (evt.t === 'error') {
+            throw new Error(evt.message ?? 'agent invocation failed');
+          }
+        }
       }
-      setSessionId(data.sessionId);
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === botMsg.id
-            ? { ...m, text: data.answer, citations: data.citations, pending: false }
-            : m,
-        ),
-      );
       setStatus('ready');
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'unknown error';

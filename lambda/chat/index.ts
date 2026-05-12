@@ -1,11 +1,15 @@
 /**
- * Chat backend — JSON API that proxies a user message to a Bedrock Agent's
- * InvokeAgent endpoint and returns the assembled answer plus citations.
+ * Chat backend — streaming JSON-Lines API that proxies a user message to a
+ * Bedrock Agent's InvokeAgent endpoint and writes each text chunk as soon as
+ * Bedrock yields it, then closes with a final `done` event carrying citations
+ * and the session id.
  *
- * Streaming is collapsed to a single JSON response: AI Elements + the AI SDK
- * support token-by-token streaming, but for the v0 of this stack a blocking
- * response keeps the protocol simple and citations land in a single payload
- * that the Sources component can render.
+ * Wire format (NDJSON, one event per line):
+ *   {"t":"text","v":"<token chunk>"}     — repeated for every Bedrock chunk
+ *   {"t":"done","citations":[...],"sessionId":"..."}    — once, at end
+ *
+ * Runs under Lambda's `RESPONSE_STREAM` invoke mode using the global
+ * `awslambda.streamifyResponse` helper.
  */
 
 import {
@@ -13,11 +17,28 @@ import {
   InvokeAgentCommand,
 } from '@aws-sdk/client-bedrock-agent-runtime';
 import { randomUUID } from 'crypto';
-import type { LambdaFunctionURLEvent, LambdaFunctionURLResult } from 'aws-lambda';
+import { Writable } from 'stream';
+import type { LambdaFunctionURLEvent } from 'aws-lambda';
+
+// awslambda is a runtime-injected global for Node.js Lambdas using the
+// RESPONSE_STREAM invoke mode. It's not in @types/aws-lambda, so we declare a
+// minimal shape inline.
+type HttpResponseMetadata = {
+  statusCode: number;
+  headers?: Record<string, string>;
+  cookies?: string[];
+};
+declare const awslambda: {
+  streamifyResponse(
+    handler: (event: LambdaFunctionURLEvent, responseStream: Writable) => Promise<void>,
+  ): unknown;
+  HttpResponseStream: {
+    from(stream: Writable, metadata: HttpResponseMetadata): Writable;
+  };
+};
 
 const AGENT_ID = process.env.AGENT_ID!;
 const AGENT_ALIAS_ID = process.env.AGENT_ALIAS_ID!;
-
 const client = new BedrockAgentRuntimeClient({});
 
 const CORS = {
@@ -26,30 +47,59 @@ const CORS = {
   'access-control-allow-methods': 'POST, OPTIONS',
 };
 
-const json = (status: number, body: unknown): LambdaFunctionURLResult => ({
-  statusCode: status,
-  headers: { 'content-type': 'application/json', ...CORS },
-  body: JSON.stringify(body),
-});
+const writeLine = (s: Writable, obj: unknown) => {
+  s.write(JSON.stringify(obj) + '\n');
+};
 
-export const handler = async (event: LambdaFunctionURLEvent): Promise<LambdaFunctionURLResult> => {
+export const handler = awslambda.streamifyResponse(async (event, responseStream) => {
   const method = event.requestContext.http.method;
   const path = event.rawPath || '/';
 
-  if (method === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
-  if (method === 'GET' && path === '/health') return json(200, { ok: true });
+  if (method === 'OPTIONS') {
+    const out = awslambda.HttpResponseStream.from(responseStream, {
+      statusCode: 204,
+      headers: CORS,
+    });
+    out.end();
+    return;
+  }
 
   if (method !== 'POST' || path !== '/chat') {
-    return json(404, { error: 'not found', path, method });
+    const out = awslambda.HttpResponseStream.from(responseStream, {
+      statusCode: 404,
+      headers: { 'content-type': 'application/json', ...CORS },
+    });
+    out.write(JSON.stringify({ error: 'not found', path, method }));
+    out.end();
+    return;
   }
 
   const raw = event.isBase64Encoded
     ? Buffer.from(event.body ?? '', 'base64').toString()
     : event.body ?? '{}';
-  const body = JSON.parse(raw);
-  const message: string = body.message ?? '';
-  const sessionId: string = body.sessionId ?? randomUUID();
-  if (!message.trim()) return json(400, { error: 'message is required' });
+  let body: { message?: string; sessionId?: string };
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    body = {};
+  }
+  const message = (body.message ?? '').trim();
+  const sessionId = body.sessionId ?? randomUUID();
+
+  const out = awslambda.HttpResponseStream.from(responseStream, {
+    statusCode: 200,
+    headers: {
+      'content-type': 'application/x-ndjson; charset=utf-8',
+      'cache-control': 'no-store',
+      ...CORS,
+    },
+  });
+
+  if (!message) {
+    writeLine(out, { t: 'error', message: 'message is required' });
+    out.end();
+    return;
+  }
 
   try {
     const res = await client.send(
@@ -59,16 +109,25 @@ export const handler = async (event: LambdaFunctionURLEvent): Promise<LambdaFunc
         sessionId,
         inputText: message,
         enableTrace: false,
+        // streamFinalResponse=true tells Bedrock to emit model tokens as the
+        // model generates them, rather than buffering the whole answer + any
+        // attribution + output guardrails before yielding. Without it,
+        // `res.completion` yields a single chunk even for long answers.
+        streamingConfigurations: {
+          streamFinalResponse: true,
+          applyGuardrailInterval: 200,
+        },
       }),
     );
 
-    let answer = '';
     const citations: { source?: string; quote?: string }[] = [];
+    const decoder = new TextDecoder();
 
     if (res.completion) {
       for await (const chunk of res.completion) {
         if (chunk.chunk?.bytes) {
-          answer += new TextDecoder().decode(chunk.chunk.bytes);
+          const text = decoder.decode(chunk.chunk.bytes);
+          if (text) writeLine(out, { t: 'text', v: text });
         }
         if (chunk.chunk?.attribution?.citations) {
           for (const c of chunk.chunk.attribution.citations) {
@@ -83,9 +142,11 @@ export const handler = async (event: LambdaFunctionURLEvent): Promise<LambdaFunc
       }
     }
 
-    return json(200, { answer: answer.trim(), citations, sessionId });
-  } catch (err: any) {
-    console.error('InvokeAgent error', err);
-    return json(500, { error: err.message ?? 'agent invocation failed' });
+    writeLine(out, { t: 'done', citations, sessionId });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'agent invocation failed';
+    writeLine(out, { t: 'error', message });
+  } finally {
+    out.end();
   }
-};
+});

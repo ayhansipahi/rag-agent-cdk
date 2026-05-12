@@ -49,6 +49,11 @@ export class ChatApi extends Construct {
 
     const url = fn.addFunctionUrl({
       authType: lambda.FunctionUrlAuthType.NONE,
+      // RESPONSE_STREAM lets the handler write chunks via
+      // awslambda.streamifyResponse instead of buffering a single JSON body.
+      // The chat handler streams NDJSON events: {t:"text",v:"..."} per token
+      // and one terminal {t:"done",citations,sessionId}.
+      invokeMode: lambda.InvokeMode.RESPONSE_STREAM,
       cors: {
         allowedOrigins: ['*'],
         allowedMethods: [lambda.HttpMethod.POST],
