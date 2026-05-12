@@ -171,17 +171,14 @@ export const App = () => {
           <ConversationScrollButton />
         </Conversation>
 
-        <div className="shrink-0 border-t border-border/60 bg-background/80 px-4 pt-4 pb-6 backdrop-blur-sm">
-          <PromptInput
-            onSubmit={onSubmit}
-            className="mx-auto w-full max-w-3xl rounded-2xl border border-border/80 bg-card/60 shadow-lg shadow-black/20"
-          >
+        <div className="shrink-0 px-4 pt-4 pb-6">
+          <PromptInput onSubmit={onSubmit} className="mx-auto w-full max-w-3xl">
             <PromptInputBody>
               <PromptInputTextarea placeholder="Ask a question about the knowledge base…" />
               <PromptInputSubmit status={status === 'submitted' ? 'submitted' : undefined} />
             </PromptInputBody>
           </PromptInput>
-          <p className="mx-auto mt-2 max-w-3xl text-[11px] text-muted-foreground">
+          <p className="mx-auto mt-2 max-w-3xl text-center text-[11px] text-muted-foreground">
             Grounded on documents in S3 · responses include citations · multi-turn context preserved.
           </p>
         </div>
