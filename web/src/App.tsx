@@ -20,7 +20,6 @@ import {
 } from '@/components/ai-elements/sources';
 import {
   PromptInput,
-  PromptInputBody,
   PromptInputTextarea,
   PromptInputSubmit,
 } from '@/components/ai-elements/prompt-input';
@@ -213,10 +212,13 @@ export const App = () => {
 
         <div className="shrink-0 px-4 pt-4 pb-6">
           <PromptInput onSubmit={onSubmit} className="mx-auto w-full max-w-3xl">
-            <PromptInputBody>
-              <PromptInputTextarea placeholder="Ask a question about the knowledge base…" />
-              <PromptInputSubmit status={status === 'submitted' ? 'submitted' : undefined} />
-            </PromptInputBody>
+            {/* No PromptInputBody wrapper: it adds `display: contents`, which
+                keeps `<textarea>` a DOM grandchild of `<InputGroup>` so
+                Tailwind's `has-[>textarea]:h-auto` doesn't fire and the
+                container stays at h-8 (32px) — clipping the textarea's top
+                via InputGroup's `overflow-hidden`. */}
+            <PromptInputTextarea placeholder="Ask a question about the knowledge base…" />
+            <PromptInputSubmit status={status === 'submitted' ? 'submitted' : undefined} />
           </PromptInput>
           <p className="mx-auto mt-2 max-w-3xl text-center text-[11px] text-muted-foreground">
             Grounded on documents in S3 · responses include citations · multi-turn context preserved.
